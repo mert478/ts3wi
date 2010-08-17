@@ -1,0 +1,33 @@
+1.0 Beta 2.0
+- neues Design mit Anpassungen
+- kleinere Feineinstellungen
+
+1.0 Beta 1.1
+- Backup erstellen geht nun
+- Channel erstellen geht nun ebenfalls
+- "Bara" & "Fakedog" im Copyright nun verlinkt
+- Mehr Performance
+
+1.0 Beta 1
+- Teamspeak 3 Server Beta 27 wird unterstützt
+- Neue Teamspeak 3 Web Planel Funktion
+- Backup (Beta) hinzugefügt
+-- Channel Backups und Server Backups gehen noch nicht
+-- Permission Export, Clients exportieren und Banns exportieren funktionieren
+- Vorrübergehendes Design mit neuem Aufbau!
+- Query Console hinzugefügt
+- Icon Upload hinzugefügt
+- Beschwerdeliste hinzugefügt
+-- Beschwerden sind löschbar
+- Server / Channel Gruppen hinzufügen hinzugefügt
+- Instance Editieren hinzugefügt
+- Erstelle Server Menu KOMPLETT überarbeitet
+- Server Online Zeit läuft nun richtig
+- Anzeige wieviele Server in Gebrauch
+-- Wieviele Slots insgesamt
+-- Wieviele Slots belegt
+- Icons im Teamspeak Viewer werden richtig angezeigt
+- Channel-Client Permissions (Rechte Übersicht von Clients und Channels)
+- Server Change im Header eingebaut
+- Bei Instanz Traffic besteht keine Flood Ban Gewahr mehr
+- Personen in ein anderen Channel verschrieben funktioniert nun
