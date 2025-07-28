@@ -171,7 +171,7 @@ class ImprovedMegaTrendBot:
         self.max_drawdown_limit = 500.0  # $500 toplam drawdown limiti
         
         # Teknik analiz parametreleri (daha düşük değerler)
-        self.min_signal_strength = 2
+        self.min_signal_strength = 1  # Test için daha düşük
         self.media1_period = 10
         self.media2_period = 20
         self.media3_period = 50
@@ -254,7 +254,7 @@ class ImprovedMegaTrendBot:
             for alt_symbol in alternatives:
                 alt_info = mt5.symbol_info(alt_symbol)
                 if alt_info is not None:
-                    self.logger.info(f"✅ Alternatif symbol bulundu: {alt_symbol}")
+                    self.logger.info(f"[OK] Alternatif symbol bulundu: {alt_symbol}")
                     self.symbol = alt_symbol
                     symbol_info = alt_info
                     break
@@ -268,7 +268,7 @@ class ImprovedMegaTrendBot:
             self.logger.error(f"Symbol seçilemedi: {self.symbol}")
             return False
         
-        self.logger.info(f"✅ Symbol kuruldu: {self.symbol}")
+        self.logger.info(f"[OK] Symbol kuruldu: {self.symbol}")
         self.logger.debug(f"   - Visible: {symbol_info.visible}")
         self.logger.debug(f"   - Point: {symbol_info.point}")
         self.logger.debug(f"   - Digits: {symbol_info.digits}")
@@ -279,7 +279,7 @@ class ImprovedMegaTrendBot:
             self.logger.error(f"Test verisi alınamadı - Symbol: {self.symbol}, Timeframe: {self.timeframe}")
             return False
         
-        self.logger.info(f"✅ Test verisi başarılı: {len(test_rates)} bar")
+        self.logger.info(f"[OK] Test verisi başarılı: {len(test_rates)} bar")
         return True
 
     def get_data(self, bars=200) -> Optional[pd.DataFrame]:
@@ -300,7 +300,7 @@ class ImprovedMegaTrendBot:
             self.logger.error(f"Veri dizisi boş - Symbol: {self.symbol}")
             return None
         
-        self.logger.debug(f"✅ {len(rates)} bar alındı - Symbol: {self.symbol}")
+        self.logger.debug(f"[OK] {len(rates)} bar alındı - Symbol: {self.symbol}")
         
         df = pd.DataFrame(rates)
         df['time'] = pd.to_datetime(df['time'], unit='s')
@@ -638,17 +638,17 @@ class ImprovedMegaTrendBot:
                     signal = "SELL"
                     signal_strength += 2
         
-        # RSI filtreleme
+        # RSI filtreleme (daha hafif)
         if signal == "BUY" and current_rsi > self.rsi_overbought:
-            signal_strength -= 2
+            signal_strength -= 1  # Daha az ceza
             self.logger.debug(f"RSI overbought filtresi: {current_rsi}")
         elif signal == "SELL" and current_rsi < self.rsi_oversold:
-            signal_strength -= 2
+            signal_strength -= 1  # Daha az ceza
             self.logger.debug(f"RSI oversold filtresi: {current_rsi}")
         elif signal == "BUY" and current_rsi < self.rsi_oversold:
-            signal_strength += 1  # Oversold'da BUY güçlendir
+            signal_strength += 2  # Oversold'da BUY güçlendir
         elif signal == "SELL" and current_rsi > self.rsi_overbought:
-            signal_strength += 1  # Overbought'ta SELL güçlendir
+            signal_strength += 2  # Overbought'ta SELL güçlendir
         
         # Support/Resistance kırılımları
         for level in sr_levels:
@@ -1214,5 +1214,9 @@ if __name__ == "__main__":
         risk_per_trade=0.02,  # Hesap bakiyesinin %2'si risk
         enable_spread_filter=False  # Spread kontrolünü devre dışı bırak
     )
+    
+    # Test için parametreleri gevşet
+    bot.min_signal_strength = 0  # Tüm sinyalleri kabul et
+    print(f"🚀 Test modu aktif - Minimum sinyal gücü: {bot.min_signal_strength}")
     
     bot.run_bot()
