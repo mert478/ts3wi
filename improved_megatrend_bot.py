@@ -700,12 +700,12 @@ class ImprovedMegaTrendBot:
         if (self.last_signal_time is not None and 
             self.last_signal == signal and 
             (current_time - self.last_signal_time).total_seconds() < 300):
-            self.logger.debug(f"⚠️ Aynı sinyal tekrarlandı: {signal}")
+            self.logger.debug(f"[!] Aynı sinyal tekrarlandı: {signal}")
             return None
         
         # Sinyal gücü kontrolü
         if signal and signal_strength >= self.min_signal_strength:
-            self.logger.info(f"✅ Sinyal üretildi: {signal}, Güç: {signal_strength}, RSI: {current_rsi:.2f}")
+            self.logger.info(f"[OK] Sinyal üretildi: {signal}, Güç: {signal_strength}, RSI: {current_rsi:.2f}")
             self.last_signal = signal
             self.last_signal_time = current_time
             
@@ -727,10 +727,10 @@ class ImprovedMegaTrendBot:
         
         # Detaylı debug bilgisi
         if signal:
-            self.logger.debug(f"❌ Sinyal üretilmedi - Signal: {signal}, Güç: {signal_strength}, "
+            self.logger.debug(f"[X] Sinyal üretilmedi - Signal: {signal}, Güç: {signal_strength}, "
                             f"Min gerekli: {self.min_signal_strength}, RSI: {current_rsi:.1f}")
         else:
-            self.logger.debug(f"❌ Hiç sinyal yok - SuperTrend: {trend[-1] if len(trend) > 0 else 'N/A'}")
+            self.logger.debug(f"[X] Hiç sinyal yok - SuperTrend: {trend[-1] if len(trend) > 0 else 'N/A'}")
         return None
 
     def calculate_position_size(self, signal_data: Dict, stop_loss: float) -> float:
@@ -1229,7 +1229,7 @@ if __name__ == "__main__":
         timeframe=mt5.TIMEFRAME_M1,  # ← Buradan timeframe değiştirin
         initial_lot_size=0.01,
         risk_per_trade=0.01,  # %1 risk (demo için konservatif)
-        enable_spread_filter=True  # Demo için spread kontrolü açık
+        enable_spread_filter=False  # Spread kontrolü kapalı
     )
     
     # ================================
@@ -1240,10 +1240,18 @@ if __name__ == "__main__":
     bot.max_daily_loss = 50.0        # Günlük max $50 kayıp
     bot.max_spread = 15.0            # 15 pip max spread
     
-    print(f"🎯 DEMO MOD - Timeframe: {bot.timeframe}")
-    print(f"📊 Min Sinyal Gücü: {bot.min_signal_strength}")
-    print(f"💰 Risk per trade: {bot.risk_per_trade*100}%")
-    print(f"📈 Max pozisyonlar: {bot.max_positions}")
-    print("🚀 Bot başlatılıyor...")
+    # Timeframe ismini çevir
+    timeframe_names = {
+        1: "M1", 5: "M5", 15: "M15", 30: "M30", 
+        16385: "H1", 16388: "H4", 16408: "D1"
+    }
+    tf_name = timeframe_names.get(bot.timeframe, f"TF{bot.timeframe}")
+    
+    print(f"[DEMO] Timeframe: {tf_name}")
+    print(f"[DEMO] Min Sinyal Gücü: {bot.min_signal_strength}")
+    print(f"[DEMO] Risk per trade: {bot.risk_per_trade*100}%")
+    print(f"[DEMO] Max pozisyonlar: {bot.max_positions}")
+    print(f"[DEMO] Spread kontrolü: {'KAPALI' if not bot.enable_spread_filter else 'AÇIK'}")
+    print("[DEMO] Bot başlatılıyor...")
     
     bot.run_bot()
