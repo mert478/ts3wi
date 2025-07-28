@@ -696,16 +696,16 @@ class ImprovedMegaTrendBot:
                 signal_strength += 1
                 self.logger.debug(f"Yüksek hacim konfirmasyonu: {current_volume} vs {avg_volume}")
         
-        # Aynı sinyal tekrarı kontrolü
+        # Aynı sinyal tekrarı kontrolü (Test için devre dışı)
         if (self.last_signal_time is not None and 
             self.last_signal == signal and 
             (current_time - self.last_signal_time).total_seconds() < 300):
-            self.logger.debug(f"Aynı sinyal tekrarlandı: {signal}")
-            return None
+            self.logger.debug(f"⚠️ Aynı sinyal tekrarlandı ama test modunda kabul ediliyor: {signal}")
+            # return None  # Test için devre dışı
         
         # Sinyal gücü kontrolü
         if signal and signal_strength >= self.min_signal_strength:
-            self.logger.info(f"Sinyal üretildi: {signal}, Güç: {signal_strength}, RSI: {current_rsi:.2f}")
+            self.logger.info(f"✅ Sinyal üretildi: {signal}, Güç: {signal_strength}, RSI: {current_rsi:.2f}")
             self.last_signal = signal
             self.last_signal_time = current_time
             
@@ -725,7 +725,12 @@ class ImprovedMegaTrendBot:
                 'atr': self.get_atr(df)
             }
         
-        self.logger.debug(f"Sinyal üretilmedi - Signal: {signal}, Güç: {signal_strength}")
+        # Detaylı debug bilgisi
+        if signal:
+            self.logger.debug(f"❌ Sinyal üretilmedi - Signal: {signal}, Güç: {signal_strength}, "
+                            f"Min gerekli: {self.min_signal_strength}, RSI: {current_rsi:.1f}")
+        else:
+            self.logger.debug(f"❌ Hiç sinyal yok - SuperTrend: {trend[-1] if len(trend) > 0 else 'N/A'}")
         return None
 
     def calculate_position_size(self, signal_data: Dict, stop_loss: float) -> float:
@@ -1124,8 +1129,8 @@ class ImprovedMegaTrendBot:
                 if loop_count % 100 == 0:
                     self.log_performance_summary()
                 
-                # Market uygunluk kontrolü
-                if not self.is_market_suitable():
+                # Market uygunluk kontrolü (Test için devre dışı)
+                if False:  # not self.is_market_suitable():
                     self.logger.debug("Market koşulları uygun değil")
                     time.sleep(30)
                     continue
@@ -1218,7 +1223,7 @@ if __name__ == "__main__":
     )
     
     # Test için parametreleri gevşet
-    bot.min_signal_strength = 0  # Tüm sinyalleri kabul et
+    bot.min_signal_strength = -10  # Tüm sinyalleri kabul et (negatif bile)
     print(f"🚀 Test modu aktif - Minimum sinyal gücü: {bot.min_signal_strength}")
     
     bot.run_bot()
