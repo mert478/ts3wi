@@ -151,18 +151,20 @@ class PerformanceTracker:
 
 class ImprovedMegaTrendBot:
     def __init__(self, symbol="XAUUSD+", timeframe=mt5.TIMEFRAME_M15, 
-                 initial_lot_size=0.01, risk_per_trade=0.02):
+                 initial_lot_size=0.01, risk_per_trade=0.02, 
+                 enable_spread_filter=True):
         # Temel parametreler
         self.symbol = symbol
         self.timeframe = timeframe
         self.initial_lot_size = initial_lot_size
         self.risk_per_trade = risk_per_trade
+        self.enable_spread_filter = enable_spread_filter
         self.magic_number = 1234544
         
         # Risk yönetimi parametreleri
         self.max_positions = 3
         self.min_margin_level = 100.0  # %100
-        self.max_spread = 10.0  # 10 pip
+        self.max_spread = 1000.0  # 1000 pip (spread kontrolü devre dışı)
         self.max_lot_size = 1.0
         self.min_lot_size = 0.01
         self.max_daily_loss = 100.0  # $100 günlük kayıp limiti
@@ -261,15 +263,21 @@ class ImprovedMegaTrendBot:
     def is_market_suitable(self) -> bool:
         """Market koşullarının uygun olup olmadığını kontrol et"""
         try:
-            # Spread kontrolü
-            tick = mt5.symbol_info_tick(self.symbol)
-            if tick is None:
-                return False
-            
-            spread_pips = (tick.ask - tick.bid) / (0.0001 if 'JPY' not in self.symbol else 0.01)
-            if spread_pips > self.max_spread:
-                self.logger.debug(f"Spread çok yüksek: {spread_pips} pips")
-                return False
+            # Spread kontrolü (eğer aktifse)
+            if self.enable_spread_filter:
+                tick = mt5.symbol_info_tick(self.symbol)
+                if tick is None:
+                    return False
+                
+                spread_pips = (tick.ask - tick.bid) / (0.0001 if 'JPY' not in self.symbol else 0.01)
+                if spread_pips > self.max_spread:
+                    self.logger.debug(f"Spread çok yüksek: {spread_pips} pips")
+                    return False
+            else:
+                # Spread kontrolü devre dışı - sadece tick kontrolü
+                tick = mt5.symbol_info_tick(self.symbol)
+                if tick is None:
+                    return False
             
             # Volatilite kontrolü
             df = self.get_data(50)
@@ -1142,7 +1150,8 @@ if __name__ == "__main__":
         symbol="XAUUSD+",
         timeframe=mt5.TIMEFRAME_M15,
         initial_lot_size=0.01,
-        risk_per_trade=0.02  # Hesap bakiyesinin %2'si risk
+        risk_per_trade=0.02,  # Hesap bakiyesinin %2'si risk
+        enable_spread_filter=False  # Spread kontrolünü devre dışı bırak
     )
     
     bot.run_bot()
