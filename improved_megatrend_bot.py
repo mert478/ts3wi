@@ -612,15 +612,15 @@ class ImprovedMegaTrendBot:
         signal = None
         signal_strength = 0
         
-        # SuperTrend sinyali
+        # SuperTrend sinyali (daha güçlü)
         if len(trend) > 1:
             if trend[-1] == 1 and trend[-2] == -1:
                 signal = "BUY"
-                signal_strength += 3
+                signal_strength += 4  # Daha güçlü
                 self.logger.debug(f"SuperTrend BUY sinyali: {current_price}")
             elif trend[-1] == -1 and trend[-2] == 1:
                 signal = "SELL"
-                signal_strength += 3
+                signal_strength += 4  # Daha güçlü
                 self.logger.debug(f"SuperTrend SELL sinyali: {current_price}")
         
         # Moving Average sinyali
@@ -638,13 +638,15 @@ class ImprovedMegaTrendBot:
                     signal = "SELL"
                     signal_strength += 2
         
-        # RSI filtreleme (daha hafif)
+        # RSI akıllı filtreleme
         if signal == "BUY" and current_rsi > self.rsi_overbought:
-            signal_strength -= 1  # Daha az ceza
-            self.logger.debug(f"RSI overbought filtresi: {current_rsi}")
+            # Overbought'ta BUY sinyalini iptal et (mantıksız)
+            self.logger.debug(f"RSI overbought - BUY iptal edildi: {current_rsi}")
+            return None  # Sinyal iptal
         elif signal == "SELL" and current_rsi < self.rsi_oversold:
-            signal_strength -= 1  # Daha az ceza
-            self.logger.debug(f"RSI oversold filtresi: {current_rsi}")
+            # Oversold'da SELL sinyalini iptal et (mantıksız)
+            self.logger.debug(f"RSI oversold - SELL iptal edildi: {current_rsi}")
+            return None  # Sinyal iptal
         elif signal == "BUY" and current_rsi < self.rsi_oversold:
             signal_strength += 2  # Oversold'da BUY güçlendir
         elif signal == "SELL" and current_rsi > self.rsi_overbought:
