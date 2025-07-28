@@ -696,12 +696,12 @@ class ImprovedMegaTrendBot:
                 signal_strength += 1
                 self.logger.debug(f"Yüksek hacim konfirmasyonu: {current_volume} vs {avg_volume}")
         
-        # Aynı sinyal tekrarı kontrolü (Test için devre dışı)
+        # Aynı sinyal tekrarı kontrolü
         if (self.last_signal_time is not None and 
             self.last_signal == signal and 
             (current_time - self.last_signal_time).total_seconds() < 300):
-            self.logger.debug(f"⚠️ Aynı sinyal tekrarlandı ama test modunda kabul ediliyor: {signal}")
-            # return None  # Test için devre dışı
+            self.logger.debug(f"⚠️ Aynı sinyal tekrarlandı: {signal}")
+            return None
         
         # Sinyal gücü kontrolü
         if signal and signal_strength >= self.min_signal_strength:
@@ -1129,8 +1129,8 @@ class ImprovedMegaTrendBot:
                 if loop_count % 100 == 0:
                     self.log_performance_summary()
                 
-                # Market uygunluk kontrolü (Test için devre dışı)
-                if False:  # not self.is_market_suitable():
+                # Market uygunluk kontrolü
+                if not self.is_market_suitable():
                     self.logger.debug("Market koşulları uygun değil")
                     time.sleep(30)
                     continue
@@ -1213,17 +1213,37 @@ class ImprovedMegaTrendBot:
             self.logger.info("Bot kapatıldı.")
 
 if __name__ == "__main__":
+    # ================================
+    # 📊 TIMEFRAME SEÇENEKLERİ:
+    # ================================
+    # mt5.TIMEFRAME_M1   = 1 dakika
+    # mt5.TIMEFRAME_M5   = 5 dakika  
+    # mt5.TIMEFRAME_M15  = 15 dakika
+    # mt5.TIMEFRAME_M30  = 30 dakika
+    # mt5.TIMEFRAME_H1   = 1 saat
+    # mt5.TIMEFRAME_H4   = 4 saat
+    
     # Bot parametrelerini özelleştir
     bot = ImprovedMegaTrendBot(
         symbol="XAUUSD+",
-        timeframe=mt5.TIMEFRAME_M15,
+        timeframe=mt5.TIMEFRAME_M1,  # ← Buradan timeframe değiştirin
         initial_lot_size=0.01,
-        risk_per_trade=0.02,  # Hesap bakiyesinin %2'si risk
-        enable_spread_filter=False  # Spread kontrolünü devre dışı bırak
+        risk_per_trade=0.01,  # %1 risk (demo için konservatif)
+        enable_spread_filter=True  # Demo için spread kontrolü açık
     )
     
-    # Test için parametreleri gevşet
-    bot.min_signal_strength = -10  # Tüm sinyalleri kabul et (negatif bile)
-    print(f"🚀 Test modu aktif - Minimum sinyal gücü: {bot.min_signal_strength}")
+    # ================================
+    # 🎯 DEMO MOD AYARLARI:
+    # ================================
+    bot.min_signal_strength = 3      # Normal seviye
+    bot.max_positions = 2            # Maksimum 2 pozisyon
+    bot.max_daily_loss = 50.0        # Günlük max $50 kayıp
+    bot.max_spread = 15.0            # 15 pip max spread
+    
+    print(f"🎯 DEMO MOD - Timeframe: {bot.timeframe}")
+    print(f"📊 Min Sinyal Gücü: {bot.min_signal_strength}")
+    print(f"💰 Risk per trade: {bot.risk_per_trade*100}%")
+    print(f"📈 Max pozisyonlar: {bot.max_positions}")
+    print("🚀 Bot başlatılıyor...")
     
     bot.run_bot()
