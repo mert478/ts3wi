@@ -170,12 +170,12 @@ class ImprovedMegaTrendBot:
         self.max_daily_loss = 100.0  # $100 günlük kayıp limiti
         self.max_drawdown_limit = 500.0  # $500 toplam drawdown limiti
         
-        # Teknik analiz parametreleri
-        self.min_signal_strength = 3
-        self.media1_period = 20
-        self.media2_period = 50
-        self.media3_period = 200
-        self.atr_period = 14
+        # Teknik analiz parametreleri (daha düşük değerler)
+        self.min_signal_strength = 2
+        self.media1_period = 10
+        self.media2_period = 20
+        self.media3_period = 50
+        self.atr_period = 10
         self.atr_multiplier = 2.0
         self.rsi_period = 14
         self.rsi_overbought = 70
@@ -209,10 +209,10 @@ class ImprovedMegaTrendBot:
         self.logger = logging.getLogger(__name__)
         self.performance_tracker = PerformanceTracker()
         
-        # Market filtresi
+        # Market filtresi (geçici olarak 24/7)
         self.market_hours = {
-            'start': 8,  # GMT
-            'end': 22    # GMT
+            'start': 0,   # GMT (24 saat)
+            'end': 23     # GMT (24 saat)
         }
         
         self.initialize_mt5()
@@ -225,6 +225,12 @@ class ImprovedMegaTrendBot:
                 if account_info is not None:
                     self.logger.info(f"MT5 bağlantısı başarılı - Hesap: {account_info.login}, "
                                    f"Bakiye: {account_info.balance}, Marjin Seviyesi: {account_info.margin_level}%")
+                    
+                    # Symbol seçimi ve kontrolü
+                    if not self._setup_symbol():
+                        self.logger.error("Symbol kurulumu başarısız")
+                        return False
+                    
                     return True
                 self.logger.error(f"Hesap bilgileri alınamadı, deneme {attempt + 1}/3")
                 mt5.shutdown()
@@ -235,8 +241,48 @@ class ImprovedMegaTrendBot:
         
         self.logger.error("MT5 bağlantısı başarısız, program sonlandırılıyor")
         return False
+    
+    def _setup_symbol(self) -> bool:
+        """Symbol kurulumu ve kontrolü"""
+        # İlk olarak mevcut symbol'ü dene
+        symbol_info = mt5.symbol_info(self.symbol)
+        if symbol_info is None:
+            self.logger.warning(f"Symbol {self.symbol} bulunamadı, alternatifler deneniyor...")
+            
+            # Alternatif semboller
+            alternatives = ["XAUUSD", "GOLD", "XAU/USD", "XAUUSD."]
+            for alt_symbol in alternatives:
+                alt_info = mt5.symbol_info(alt_symbol)
+                if alt_info is not None:
+                    self.logger.info(f"✅ Alternatif symbol bulundu: {alt_symbol}")
+                    self.symbol = alt_symbol
+                    symbol_info = alt_info
+                    break
+            
+            if symbol_info is None:
+                self.logger.error("Hiçbir uygun symbol bulunamadı!")
+                return False
+        
+        # Symbol'ü seç
+        if not mt5.symbol_select(self.symbol, True):
+            self.logger.error(f"Symbol seçilemedi: {self.symbol}")
+            return False
+        
+        self.logger.info(f"✅ Symbol kuruldu: {self.symbol}")
+        self.logger.debug(f"   - Visible: {symbol_info.visible}")
+        self.logger.debug(f"   - Point: {symbol_info.point}")
+        self.logger.debug(f"   - Digits: {symbol_info.digits}")
+        
+        # Test verisi al
+        test_rates = mt5.copy_rates_from_pos(self.symbol, self.timeframe, 0, 10)
+        if test_rates is None or len(test_rates) == 0:
+            self.logger.error(f"Test verisi alınamadı - Symbol: {self.symbol}, Timeframe: {self.timeframe}")
+            return False
+        
+        self.logger.info(f"✅ Test verisi başarılı: {len(test_rates)} bar")
+        return True
 
-    def get_data(self, bars=500) -> Optional[pd.DataFrame]:
+    def get_data(self, bars=200) -> Optional[pd.DataFrame]:
         """Market verilerini al ve cache'le"""
         current_time = datetime.now()
         
@@ -247,9 +293,14 @@ class ImprovedMegaTrendBot:
                 return self.data_cache
         
         rates = mt5.copy_rates_from_pos(self.symbol, self.timeframe, 0, bars)
-        if rates is None or len(rates) == 0:
-            self.logger.error("Veri alınamadı")
+        if rates is None:
+            self.logger.error(f"Veri alınamadı - Symbol: {self.symbol}, Timeframe: {self.timeframe}")
             return None
+        elif len(rates) == 0:
+            self.logger.error(f"Veri dizisi boş - Symbol: {self.symbol}")
+            return None
+        
+        self.logger.debug(f"✅ {len(rates)} bar alındı - Symbol: {self.symbol}")
         
         df = pd.DataFrame(rates)
         df['time'] = pd.to_datetime(df['time'], unit='s')
@@ -291,8 +342,17 @@ class ImprovedMegaTrendBot:
                 self.logger.debug(f"Volatilite çok düşük: ATR={atr}, Avg ATR={avg_atr}")
                 return False
             
-            # Market saatleri kontrolü
-            current_hour = datetime.utcnow().hour
+            # Market saatleri ve hafta sonu kontrolü
+            now_utc = datetime.utcnow()
+            current_hour = now_utc.hour
+            current_weekday = now_utc.weekday()  # 0=Monday, 6=Sunday
+            
+            # Hafta sonu kontrolü (Cumartesi-Pazar)
+            if current_weekday >= 5:  # 5=Saturday, 6=Sunday
+                self.logger.debug(f"Hafta sonu, market kapalı: {current_weekday}")
+                return False
+            
+            # Market saatleri kontrolü (Pazartesi 00:00 - Cuma 23:59 UTC)
             if not (self.market_hours['start'] <= current_hour <= self.market_hours['end']):
                 self.logger.debug(f"Market saatleri dışında: {current_hour} UTC")
                 return False
@@ -521,8 +581,9 @@ class ImprovedMegaTrendBot:
 
     def generate_enhanced_signals(self, df: pd.DataFrame) -> Optional[Dict]:
         """Gelişmiş sinyal üretimi"""
-        if len(df) < max(self.media3_period, self.rsi_period, self.atr_period):
-            self.logger.debug("Yetersiz veri, sinyal üretilemedi")
+        required_bars = max(self.media3_period, self.rsi_period, self.atr_period)
+        if len(df) < required_bars:
+            self.logger.debug(f"Yetersiz veri: {len(df)} bars, gerekli: {required_bars}")
             return None
         
         # Volatiliteye göre parametreleri ayarla
