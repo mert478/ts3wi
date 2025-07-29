@@ -1794,11 +1794,11 @@ class ImprovedMegaTrendBot:
                             price, 
                             profit
                         )
-                                            self.consecutive_losses = 0  # Kar ile kapatılan pozisyon
-                    self.logger.info(f"Pozisyon {position.ticket} kâr ile kapatıldı: ${profit:.2f}")
-                    
-                    # Telegram pozisyon kapanma bildirimi
-                    self.telegram.send_trade_closed(position.ticket, profit, price)
+                        self.consecutive_losses = 0  # Kar ile kapatılan pozisyon
+                        self.logger.info(f"Pozisyon {position.ticket} kâr ile kapatıldı: ${profit:.2f}")
+                        
+                        # Telegram pozisyon kapanma bildirimi
+                        self.telegram.send_trade_closed(position.ticket, profit, price)
                     else:
                         self.logger.error(f"Kar realizasyonu başarısız: {result.comment}")
                         
