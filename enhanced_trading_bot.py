@@ -287,31 +287,50 @@ class EnhancedMegaTrendBot:
 
     def check_autotrading_enabled(self):
         """AutoTrading'in etkin olup olmadığını kontrol et"""
-        terminal_info = mt5.terminal_info()
-        if terminal_info is None:
-            self.logger.error("Terminal bilgileri alınamadı")
+        try:
+            terminal_info = mt5.terminal_info()
+            if terminal_info is None:
+                self.logger.error("Terminal bilgileri alınamadı")
+                return False
+            
+            # Terminal üzerinde ticaret izni kontrolü
+            if not terminal_info.trade_allowed:
+                self.logger.error("Terminal üzerinde ticaret izni yok")
+                self.logger.error("ÇÖZÜM: MT5'te Tools → Options → Expert Advisors → 'Allow automated trading' seçeneğini işaretleyin")
+                return False
+            
+            account_info = mt5.account_info()
+            if account_info is None:
+                self.logger.error("Hesap bilgileri alınamadı")
+                return False
+            
+            # Hesap üzerinde ticaret izni kontrolü
+            if not account_info.trade_allowed:
+                self.logger.error("Hesap üzerinde ticaret izni yok")
+                self.logger.error("ÇÖZÜM: Broker hesabınızda ticaret kısıtlaması olabilir")
+                return False
+            
+            # Symbol kontrolü
+            symbol_info = mt5.symbol_info(self.symbol)
+            if symbol_info is None:
+                self.logger.error(f"Symbol bilgisi alınamadı: {self.symbol}")
+                return False
+            
+            # Symbol'ün ticaret için uygun olup olmadığını kontrol et
+            if not symbol_info.visible:
+                if not mt5.symbol_select(self.symbol, True):
+                    self.logger.error(f"Symbol seçilemedi: {self.symbol}")
+                    return False
+            
+            # Temel bilgileri logla
+            self.logger.debug(f"Terminal: {terminal_info.name}, Build: {terminal_info.build}")
+            self.logger.debug(f"Ticaret izni - Terminal: {terminal_info.trade_allowed}, Hesap: {account_info.trade_allowed}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"AutoTrading kontrol hatası: {e}")
             return False
-        
-        if not terminal_info.trade_allowed:
-            self.logger.error("Terminal üzerinde ticaret izni yok")
-            return False
-        
-        account_info = mt5.account_info()
-        if account_info is None:
-            self.logger.error("Hesap bilgileri alınamadı")
-            return False
-        
-        if not account_info.trade_allowed:
-            self.logger.error("Hesap üzerinde ticaret izni yok")
-            return False
-        
-        # Expert Advisor izinlerini kontrol et
-        if not terminal_info.trade_expert:
-            self.logger.error("Expert Advisor ticaret izni yok")
-            return False
-        
-        self.logger.info("AutoTrading kontrolleri başarılı - Ticaret izni var")
-        return True
 
     def get_error_description(self, error_code):
         """MT5 hata kodlarının açıklamalarını döndür"""
