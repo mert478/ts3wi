@@ -1977,6 +1977,12 @@ if __name__ == "__main__":
     bot.min_confirmations = 2       # 2 konfirmasyon (önceki: 3)
     bot.debug_mode = True           # Debug modu aktif
     
+    # Timeframe isimleri
+    timeframe_names = {
+        1: "M1", 5: "M5", 15: "M15", 30: "M30", 
+        16385: "H1", 16388: "H4", 16408: "D1"
+    }
+    
     # Bot başlangıç bildirimi
     if bot.telegram.enabled:
         bot.telegram.send_message("🚀 <b>IMPROVED MEGATREND BOT BAŞLATILDI</b> 🚀\n\n"
@@ -1984,11 +1990,6 @@ if __name__ == "__main__":
                                 f"⚡ Min Sinyal Gücü: {bot.min_signal_strength}\n"
                                 f"🛡️ Min Konfirmasyon: {bot.min_confirmations}\n"
                                 f"⏰ Cooldown: {bot.false_signal_cooldown}s")
-    
-    timeframe_names = {
-        1: "M1", 5: "M5", 15: "M15", 30: "M30", 
-        16385: "H1", 16388: "H4", 16408: "D1"
-    }
     tf_name = timeframe_names.get(bot.timeframe, f"TF{bot.timeframe}")
     
     safe_print(f"[CHART] Timeframe: {tf_name}")
