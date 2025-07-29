@@ -8,6 +8,7 @@ import talib
 import warnings
 import json
 import os
+import requests
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 warnings.filterwarnings('ignore')
@@ -207,10 +208,104 @@ class PerformanceTracker:
         
         return streak if last_positive else -streak
 
+class TelegramNotifier:
+    """Telegram bildirimleri için sınıf"""
+    
+    def __init__(self, bot_token: str, chat_id: str, enabled: bool = True):
+        self.bot_token = bot_token
+        self.chat_id = chat_id
+        self.enabled = enabled
+        self.base_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+    def send_message(self, message: str, parse_mode: str = "HTML"):
+        """Telegram mesajı gönder"""
+        if not self.enabled:
+            return
+        
+        try:
+            payload = {
+                'chat_id': self.chat_id,
+                'text': message,
+                'parse_mode': parse_mode
+            }
+            
+            response = requests.post(self.base_url, data=payload, timeout=10)
+            if response.status_code != 200:
+                logging.warning(f"Telegram mesaj gönderilemedi: {response.status_code}")
+        except Exception as e:
+            logging.error(f"Telegram hata: {e}")
+    
+    def send_trade_signal(self, signal_data: dict):
+        """Trade sinyali bildirimi"""
+        signal = signal_data['signal']
+        price = signal_data['price']
+        strength = signal_data['strength']
+        rsi = signal_data['rsi']
+        trend = signal_data['trend_analysis']['direction']
+        
+        message = f"""
+🎯 <b>YENİ SİNYAL</b> 🎯
+
+📈 <b>Sinyal:</b> {signal}
+💰 <b>Fiyat:</b> {price:.2f}
+⚡ <b>Güç:</b> {strength}/10
+📊 <b>RSI:</b> {rsi:.1f}
+🔄 <b>Trend:</b> {trend}
+
+⏰ <b>Zaman:</b> {datetime.now().strftime('%H:%M:%S')}
+        """
+        self.send_message(message)
+    
+    def send_trade_opened(self, order_type: str, lot_size: float, price: float, 
+                         stop_loss: float, take_profit: float, ticket: int):
+        """Açılan pozisyon bildirimi"""
+        message = f"""
+✅ <b>POZİSYON AÇILDI</b> ✅
+
+📊 <b>Tip:</b> {order_type}
+💎 <b>Lot:</b> {lot_size}
+💰 <b>Giriş:</b> {price:.2f}
+🛡️ <b>Stop Loss:</b> {stop_loss:.2f}
+🎯 <b>Take Profit:</b> {take_profit:.2f}
+🎫 <b>Ticket:</b> {ticket}
+
+⏰ <b>Zaman:</b> {datetime.now().strftime('%H:%M:%S')}
+        """
+        self.send_message(message)
+    
+    def send_trade_closed(self, ticket: int, pnl: float, closing_price: float):
+        """Kapatılan pozisyon bildirimi"""
+        pnl_emoji = "💚" if pnl > 0 else "❌"
+        message = f"""
+{pnl_emoji} <b>POZİSYON KAPATILDI</b> {pnl_emoji}
+
+🎫 <b>Ticket:</b> {ticket}
+💰 <b>Kapanış:</b> {closing_price:.2f}
+💵 <b>PnL:</b> ${pnl:.2f}
+
+⏰ <b>Zaman:</b> {datetime.now().strftime('%H:%M:%S')}
+        """
+        self.send_message(message)
+    
+    def send_daily_summary(self, metrics: dict, account_info):
+        """Günlük özet bildirimi"""
+        message = f"""
+📊 <b>GÜNLÜK ÖZET</b> 📊
+
+💰 <b>Bakiye:</b> ${account_info.balance:.2f}
+💎 <b>Equity:</b> ${account_info.equity:.2f}
+📈 <b>Toplam İşlem:</b> {metrics['total_trades']}
+🎯 <b>Kazanma Oranı:</b> {metrics['win_rate']:.1%}
+💵 <b>Toplam PnL:</b> ${metrics['total_pnl']:.2f}
+
+⏰ <b>Zaman:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}
+        """
+        self.send_message(message)
+
 class ImprovedMegaTrendBot:
     def __init__(self, symbol="XAUUSD+", timeframe=mt5.TIMEFRAME_M15, 
                  initial_lot_size=0.01, risk_per_trade=0.02, 
-                 enable_spread_filter=True):
+                 enable_spread_filter=True, telegram_token=None, telegram_chat_id=None):
         
         # Unicode güvenli logging için emoji haritası
         self.emoji_map = {
@@ -220,6 +315,13 @@ class ImprovedMegaTrendBot:
             '🔥': '[FIRE]', '💎': '[DIAMOND]', '🏆': '[TROPHY]', '📉': '[DOWN]',
             '💵': '[DOLLAR]', '⏹️': '[STOP]', '👋': '[WAVE]', '💪': '[STRONG]'
         }
+        
+        # Telegram bildirimleri
+        self.telegram = TelegramNotifier(
+            telegram_token, 
+            telegram_chat_id, 
+            enabled=(telegram_token is not None and telegram_chat_id is not None)
+        )
         # Temel parametreler
         self.symbol = symbol
         self.timeframe = timeframe
@@ -237,15 +339,15 @@ class ImprovedMegaTrendBot:
         self.max_daily_loss = 50.0  # Daha düşük günlük kayıp limiti
         self.max_drawdown_limit = 200.0  # Daha düşük drawdown limiti
         
-        # ✨ DAHA PRATIK SINYAL PARAMETRELERİ ✨
-        self.min_signal_strength = 5  # DAHA DÜŞÜK (önceki: 8)
-        self.trend_confirmation_period = 20  # DAHA KISA (önceki: 30)
-        self.false_signal_cooldown = 300  # 5 DAKİKA (önceki: 600)
-        self.price_action_confirmation = True
-        self.multi_timeframe_confirmation = False  # KAPALI (hızlı sinyal için)
-        self.momentum_filter = True
-        self.volatility_breakout_filter = False  # KAPALI (daha esnek)
-        self.min_confirmations = 3  # DAHA DÜŞÜK (önceki: 4)
+        # ✨ ÇOK ESNEK SINYAL PARAMETRELERİ ✨
+        self.min_signal_strength = 3  # ÇOK DÜŞÜK (önceki: 5)
+        self.trend_confirmation_period = 15  # DAHA KISA (önceki: 20)
+        self.false_signal_cooldown = 180  # 3 DAKİKA (önceki: 300)
+        self.price_action_confirmation = False  # KAPALI (daha serbest)
+        self.multi_timeframe_confirmation = False  # KAPALI
+        self.momentum_filter = False  # KAPALI (daha serbest)
+        self.volatility_breakout_filter = False  # KAPALI
+        self.min_confirmations = 2  # ÇOK DÜŞÜK (önceki: 3)
         
         # Teknik analiz parametreleri (daha esnek)
         self.media1_period = 10  # DAHA KISA (önceki: 21)
@@ -274,9 +376,9 @@ class ImprovedMegaTrendBot:
         self.resolution_div = 30
         self.pivot_proximity_threshold = 0.001  # DAHA GENİŞ (önceki: 0.0005)
         
-        # Trend analizi parametreleri (daha esnek)
-        self.min_trend_bars = 10  # DAHA KISA (önceki: 15)
-        self.trend_strength_threshold = 0.6  # DAHA DÜŞÜK (önceki: 0.8)
+        # Trend analizi parametreleri (ultra esnek)
+        self.min_trend_bars = 5   # ULTRA KISA (önceki: 10)
+        self.trend_strength_threshold = 0.3  # ULTRA DÜŞÜK (önceki: 0.6)
         
         # Debug modu
         self.debug_mode = True  # Sinyal reddedilme sebeplerini göster
@@ -965,11 +1067,12 @@ class ImprovedMegaTrendBot:
         previous_price = close[-2] if len(close) > 1 else current_price
         current_time = df['time'].iloc[-1]
         
-        # [SEARCH] 1. TREND GÜÇ ANALİZİ (DAHA ESNEK)
+        # [SEARCH] 1. TREND GÜÇ ANALİZİ (ULTRA ESNEK)
         trend_analysis = self.analyze_trend_strength(df)
+        # Trend gücü kontrolü artık daha esnek - %30'un altında olan trendler bile kabul
         if trend_analysis['strength'] < self.trend_strength_threshold:
-            if self.debug_mode and self.signal_attempts % 20 == 0:
-                self.logger.debug(f"[X] Trend zayif: {trend_analysis['strength']:.2f} < {self.trend_strength_threshold}")
+            if self.debug_mode and self.signal_attempts % 30 == 0:
+                self.logger.debug(f"[X] Trend cok zayif: {trend_analysis['strength']:.2f} < {self.trend_strength_threshold}")
                 self.logger.debug(f"    Trend Yonu: {trend_analysis['direction']}")
             return None
         
@@ -1035,65 +1138,66 @@ class ImprovedMegaTrendBot:
                 self.logger.debug(f"[X] SuperTrend sinyali yok - Trend: {trend[-1] if len(trend) > 0 else 'N/A'}")
             return None
         
-        # [OK] 2. MOVING AVERAGE SIRALAM (ESNEK)
-        ma_alignment = False
-        if len(dema1) > 1 and len(dema2) > 1 and len(dema3) > 1:
+        # [OK] 2. MOVING AVERAGE SIRALAM (ULTRA ESNEK)
+        ma_alignment = True  # Varsayılan olarak geçer
+        if len(dema1) > 1 and len(dema2) > 1:
             ma1 = dema1.iloc[-1]
             ma2 = dema2.iloc[-1] 
-            ma3 = dema3.iloc[-1]
             
-            # Daha esnek MA koşulları
-            if (signal == "BUY" and ma1 > ma2 and current_price > ma1):  # MA3 koşulu kaldırıldı
+            # Ultra esnek MA koşulları - sadece fiyat MA1'in üstünde/altında olması yeterli
+            if (signal == "BUY" and current_price > ma1):
                 signal_strength += 2
                 confirmation_count += 1
-                ma_alignment = True
                 if self.debug_mode:
-                    self.logger.debug("[OK] MA siralaması BUY uygun (esnek)")
-            elif (signal == "SELL" and ma1 < ma2 and current_price < ma1):  # MA3 koşulu kaldırıldı
+                    self.logger.debug("[OK] Fiyat MA1 ustunde - BUY uygun")
+            elif (signal == "SELL" and current_price < ma1):
                 signal_strength += 2
                 confirmation_count += 1
-                ma_alignment = True
                 if self.debug_mode:
-                    self.logger.debug("[OK] MA siralaması SELL uygun (esnek)")
+                    self.logger.debug("[OK] Fiyat MA1 altinda - SELL uygun")
+            
+            # MA sıralaması bonus puan (zorunlu değil)
+            if (signal == "BUY" and ma1 > ma2):
+                signal_strength += 1
+                if self.debug_mode:
+                    self.logger.debug("[OK] MA1 > MA2 bonus")
+            elif (signal == "SELL" and ma1 < ma2):
+                signal_strength += 1
+                if self.debug_mode:
+                    self.logger.debug("[OK] MA1 < MA2 bonus")
         
-        if not ma_alignment:
-            rejection_reasons.append("MA siralaması uygun degil")
-            if self.debug_mode and self.signal_attempts % 10 == 0:
-                ma1 = dema1.iloc[-1] if len(dema1) > 0 else 0
-                ma2 = dema2.iloc[-1] if len(dema2) > 0 else 0
-                self.logger.debug(f"[X] MA uyumsuz - MA1: {ma1:.2f}, MA2: {ma2:.2f}, Fiyat: {current_price:.2f}")
-            return None
+        # MA alignment artık zorunlu değil, sadece bonus
         
-        # [OK] 3. RSI AKILLI FİLTRE (DAHA ESNEK)
-        rsi_ok = False
+        # [OK] 3. RSI FİLTRE (ULTRA ESNEK) - Sadece çok ekstrem durumlar reddedilir
+        rsi_extreme_check = True
         if signal == "BUY":
-            if current_rsi > self.rsi_overbought:  # 70
-                rejection_reasons.append(f"RSI cok yuksek: {current_rsi:.1f}")
+            if current_rsi > 85:  # Çok ekstrem overbought
+                rejection_reasons.append(f"RSI ekstrem yuksek: {current_rsi:.1f}")
                 if self.debug_mode:
-                    self.logger.debug(f"[X] RSI cok yuksek: {current_rsi:.1f}")
+                    self.logger.debug(f"[X] RSI ekstrem yuksek: {current_rsi:.1f}")
                 return None
-            elif current_rsi >= 20:  # Çok geniş aralık
-                signal_strength += 2
+            else:
+                signal_strength += 1  # RSI bonus (her durumda)
                 confirmation_count += 1
-                rsi_ok = True
                 if self.debug_mode:
-                    self.logger.debug(f"[OK] RSI BUY uygun: {current_rsi:.1f}")
+                    self.logger.debug(f"[OK] RSI BUY kabul: {current_rsi:.1f}")
         elif signal == "SELL":
-            if current_rsi < self.rsi_oversold:  # 30
-                rejection_reasons.append(f"RSI cok dusuk: {current_rsi:.1f}")
+            if current_rsi < 15:  # Çok ekstrem oversold
+                rejection_reasons.append(f"RSI ekstrem dusuk: {current_rsi:.1f}")
                 if self.debug_mode:
-                    self.logger.debug(f"[X] RSI cok dusuk: {current_rsi:.1f}")
+                    self.logger.debug(f"[X] RSI ekstrem dusuk: {current_rsi:.1f}")
                 return None
-            elif current_rsi <= 80:  # Çok geniş aralık
-                signal_strength += 2
+            else:
+                signal_strength += 1  # RSI bonus (her durumda)
                 confirmation_count += 1
-                rsi_ok = True
                 if self.debug_mode:
-                    self.logger.debug(f"[OK] RSI SELL uygun: {current_rsi:.1f}")
+                    self.logger.debug(f"[OK] RSI SELL kabul: {current_rsi:.1f}")
         
-        if not rsi_ok:
-            rejection_reasons.append("RSI aralik uygun degil")
-            return None
+        # RSI ideal aralık bonus
+        if 30 <= current_rsi <= 70:
+            signal_strength += 1
+            if self.debug_mode:
+                self.logger.debug("[OK] RSI ideal aralik bonus")
         
         # [OK] 4. MACD KONFİRMASYONU (İSTEĞE BAĞLI)
         macd_ok = True  # Varsayılan olarak geçer
@@ -1274,6 +1378,34 @@ class ImprovedMegaTrendBot:
                 'strength': signal_strength,
                 'confirmations': confirmation_count
             })
+            
+            # Telegram bildirimi gönder
+            signal_data_for_telegram = {
+                'signal': signal,
+                'strength': signal_strength,
+                'confirmations': confirmation_count,
+                'price': current_price,
+                'rsi': current_rsi,
+                'trend_analysis': trend_analysis,
+                'divergence': divergence,
+                'price_action': price_action,
+                'ma1': dema1.iloc[-1],
+                'ma2': dema2.iloc[-1],
+                'ma3': dema3.iloc[-1],
+                'supertrend': supertrend[-1],
+                'trend': trend[-1],
+                'macd': macd[-1] if len(macd) > 0 else 0,
+                'macd_signal': macd_signal[-1] if len(macd_signal) > 0 else 0,
+                'bb_position': bb_position,
+                'sr_levels': sr_levels,
+                'supply_zones': supply_zones,
+                'demand_zones': demand_zones,
+                'atr': atr,
+                'volume_ratio': current_volume / avg_volume if len(df) >= 20 else 1.0
+            }
+            
+            # Telegram sinyal bildirimi
+            self.telegram.send_trade_signal(signal_data_for_telegram)
             
             return {
                 'signal': signal,
@@ -1537,6 +1669,11 @@ class ImprovedMegaTrendBot:
             self.logger.info(f"🎯 EMİR BAŞARILI: {result.order} - "
                            f"{'BUY' if order_type == mt5.ORDER_TYPE_BUY else 'SELL'} "
                            f"- {volume} lot - Price: {price:.5f}")
+            
+            # Telegram pozisyon açılma bildirimi
+            order_type_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
+            self.telegram.send_trade_opened(order_type_str, volume, price, stop_loss, take_profit, result.order)
+            
             return True
             
         except Exception as e:
@@ -1597,6 +1734,9 @@ class ImprovedMegaTrendBot:
                         self.consecutive_losses = 0
                     
                     self.logger.info(f"Pozisyon kapatıldı: {position.ticket}, PnL: {position.profit:.2f}")
+                    
+                    # Telegram pozisyon kapanma bildirimi
+                    self.telegram.send_trade_closed(position.ticket, position.profit, price)
                 else:
                     self.logger.error(f"Pozisyon kapatılamadı: {result.comment}")
             
@@ -1654,8 +1794,11 @@ class ImprovedMegaTrendBot:
                             price, 
                             profit
                         )
-                        self.consecutive_losses = 0  # Kar ile kapatılan pozisyon
-                        self.logger.info(f"Pozisyon {position.ticket} kâr ile kapatıldı: ${profit:.2f}")
+                                            self.consecutive_losses = 0  # Kar ile kapatılan pozisyon
+                    self.logger.info(f"Pozisyon {position.ticket} kâr ile kapatıldı: ${profit:.2f}")
+                    
+                    # Telegram pozisyon kapanma bildirimi
+                    self.telegram.send_trade_closed(position.ticket, profit, price)
                     else:
                         self.logger.error(f"Kar realizasyonu başarısız: {result.comment}")
                         
@@ -1704,6 +1847,17 @@ class ImprovedMegaTrendBot:
                 # Her 200 döngüde bir performans özeti
                 if loop_count % 200 == 0:
                     self.log_performance_summary()
+                
+                # Günlük Telegram özeti (günde bir kez)
+                current_hour = datetime.now().hour
+                if loop_count % 1000 == 0 and current_hour == 18:  # Akşam 6'da
+                    try:
+                        metrics = self.performance_tracker.get_performance_metrics()
+                        account_info = mt5.account_info()
+                        if account_info and self.telegram.enabled:
+                            self.telegram.send_daily_summary(metrics, account_info)
+                    except Exception as e:
+                        self.logger.error(f"Telegram günlük özet hatası: {e}")
                 
                 # Market uygunluk kontrolü
                 if not self.is_market_suitable():
@@ -1800,22 +1954,36 @@ if __name__ == "__main__":
     safe_print("[TARGET] ULTRA YUKSEK DOGRULUK MOD")
     safe_print("=" * 50)
     
-    # Bot parametrelerini özelleştir
+    # Telegram bilgileri
+    TELEGRAM_BOT_TOKEN = "7594813856:AAGYoqUnHkT6Mybo7L3goS-Rw_7dJ8bnRpU"
+    TELEGRAM_CHAT_ID = "6694433256"
+    
+    # Bot parametrelerini özelleştir (Telegram dahil)
     bot = ImprovedMegaTrendBot(
         symbol="XAUUSD+",
         timeframe=mt5.TIMEFRAME_M1,
         initial_lot_size=0.01,
         risk_per_trade=0.005,  # %0.5 risk (çok konservatif)
-        enable_spread_filter=False  # Spread kontrolü KAPALI (sorun giderme için)
+        enable_spread_filter=False,  # Spread kontrolü KAPALI
+        telegram_token=TELEGRAM_BOT_TOKEN,
+        telegram_chat_id=TELEGRAM_CHAT_ID
     )
     
-    # Daha pratik ayarlar
-    bot.min_signal_strength = 5     # MAKUL SEVIYE (önceki: 12)
+    # Ultra esnek ayarlar - çok daha fazla sinyal
+    bot.min_signal_strength = 3     # ULTRA DÜŞÜK (önceki: 5)
     bot.max_positions = 1           # Tek pozisyon (güvenli)
     bot.max_daily_loss = 50.0       # $50 günlük limit
-    bot.false_signal_cooldown = 300 # 5 dakika (önceki: 15 dakika)
-    bot.min_confirmations = 3       # 3 konfirmasyon (önceki: 5)
+    bot.false_signal_cooldown = 180 # 3 dakika (önceki: 5 dakika)
+    bot.min_confirmations = 2       # 2 konfirmasyon (önceki: 3)
     bot.debug_mode = True           # Debug modu aktif
+    
+    # Bot başlangıç bildirimi
+    if bot.telegram.enabled:
+        bot.telegram.send_message("🚀 <b>IMPROVED MEGATREND BOT BAŞLATILDI</b> 🚀\n\n"
+                                f"📊 Timeframe: {timeframe_names.get(bot.timeframe, 'M1')}\n"
+                                f"⚡ Min Sinyal Gücü: {bot.min_signal_strength}\n"
+                                f"🛡️ Min Konfirmasyon: {bot.min_confirmations}\n"
+                                f"⏰ Cooldown: {bot.false_signal_cooldown}s")
     
     timeframe_names = {
         1: "M1", 5: "M5", 15: "M15", 30: "M30", 
