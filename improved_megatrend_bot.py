@@ -237,50 +237,54 @@ class ImprovedMegaTrendBot:
         self.max_daily_loss = 50.0  # Daha düşük günlük kayıp limiti
         self.max_drawdown_limit = 200.0  # Daha düşük drawdown limiti
         
-        # İyileştirilmiş sinyal filtreleme parametreleri
-        self.min_signal_strength = 8  # ÇOK YÜKSEK minimum güç
-        self.trend_confirmation_period = 30  # Uzun trend konfirmasyonu
-        self.false_signal_cooldown = 600  # 10 dakika sinyal arası bekleme
+        # ✨ DAHA PRATIK SINYAL PARAMETRELERİ ✨
+        self.min_signal_strength = 5  # DAHA DÜŞÜK (önceki: 8)
+        self.trend_confirmation_period = 20  # DAHA KISA (önceki: 30)
+        self.false_signal_cooldown = 300  # 5 DAKİKA (önceki: 600)
         self.price_action_confirmation = True
-        self.multi_timeframe_confirmation = True
+        self.multi_timeframe_confirmation = False  # KAPALI (hızlı sinyal için)
         self.momentum_filter = True
-        self.volatility_breakout_filter = True
-        self.min_confirmations = 4  # Minimum 4 konfirmasyon gerekli
+        self.volatility_breakout_filter = False  # KAPALI (daha esnek)
+        self.min_confirmations = 3  # DAHA DÜŞÜK (önceki: 4)
         
-        # Teknik analiz parametreleri (çok konservatif)
-        self.media1_period = 21  # Daha uzun MA'lar
-        self.media2_period = 50
-        self.media3_period = 100
-        self.atr_period = 21
-        self.atr_multiplier = 3.0  # Çok geniş bantlar
-        self.rsi_period = 21  # Daha uzun RSI
-        self.rsi_overbought = 75  # Çok konservatif seviyeler
-        self.rsi_oversold = 25
-        self.bb_period = 21  # Bollinger Bands
-        self.bb_std = 2.5  # Daha geniş bantlar
+        # Teknik analiz parametreleri (daha esnek)
+        self.media1_period = 10  # DAHA KISA (önceki: 21)
+        self.media2_period = 21  # DAHA KISA (önceki: 50)
+        self.media3_period = 50   # DAHA KISA (önceki: 100)
+        self.atr_period = 14     # STANDART (önceki: 21)
+        self.atr_multiplier = 2.5  # DAHA DAR (önceki: 3.0)
+        self.rsi_period = 14     # STANDART (önceki: 21)
+        self.rsi_overbought = 70  # DAHA ESNEK (önceki: 75)
+        self.rsi_oversold = 30   # DAHA ESNEK (önceki: 25)
+        self.bb_period = 20      # STANDART (önceki: 21)
+        self.bb_std = 2.0        # STANDART (önceki: 2.5)
         
         # MACD parametreleri
         self.macd_fast = 12
         self.macd_slow = 26
         self.macd_signal = 9
         
-        # Pivot ve S/R parametreleri
-        self.pivot_period = 20  # Çok uzun periyot
-        self.max_num_pivot = 10
-        self.channel_width = 5  # Çok dar kanal
-        self.max_num_sr = 3
-        self.min_strength = 4  # Çok yüksek güç
-        self.supply_demand_threshold = 20.0
-        self.resolution_div = 20
-        self.pivot_proximity_threshold = 0.0005  # Çok dar yakınlık
+        # Pivot ve S/R parametreleri (daha esnek)
+        self.pivot_period = 10   # DAHA KISA (önceki: 20)
+        self.max_num_pivot = 15  # DAHA FAZLA (önceki: 10)
+        self.channel_width = 8   # DAHA GENİŞ (önceki: 5)
+        self.max_num_sr = 5      # DAHA FAZLA (önceki: 3)
+        self.min_strength = 2    # DAHA DÜŞÜK (önceki: 4)
+        self.supply_demand_threshold = 15.0  # DAHA DÜŞÜK (önceki: 20.0)
+        self.resolution_div = 30
+        self.pivot_proximity_threshold = 0.001  # DAHA GENİŞ (önceki: 0.0005)
         
-        # Trend analizi parametreleri
-        self.min_trend_bars = 15
-        self.trend_strength_threshold = 0.8  # Çok yüksek trend gücü
+        # Trend analizi parametreleri (daha esnek)
+        self.min_trend_bars = 10  # DAHA KISA (önceki: 15)
+        self.trend_strength_threshold = 0.6  # DAHA DÜŞÜK (önceki: 0.8)
+        
+        # Debug modu
+        self.debug_mode = True  # Sinyal reddedilme sebeplerini göster
+        self.signal_attempts = 0  # Sinyal denemesi sayacı
         
         # Adaptif parametreler
         self.adaptive_mode = True
-        self.volatility_lookback = 50
+        self.volatility_lookback = 30  # DAHA KISA (önceki: 50)
         
         # Cache ve tracking
         self.data_cache = None
@@ -938,11 +942,21 @@ class ImprovedMegaTrendBot:
         return supply_zones, demand_zones
 
     def generate_enhanced_signals(self, df: pd.DataFrame) -> Optional[Dict]:
-        """🚨 YENİ GELİŞTİRİLMİŞ SİNYAL ÜRETİCİ - YUKSEK DOĞRULUK"""
+        """[SEARCH] YENİ GELİŞTİRİLMİŞ SİNYAL ÜRETİCİ - YUKSEK DOĞRULUK"""
         required_bars = max(self.media3_period, self.rsi_period, self.atr_period, 100)
         if len(df) < required_bars:
-            self.logger.debug(f"❌ Yetersiz veri: {len(df)} bars")
+            if self.debug_mode:
+                self.logger.debug(f"[X] Yetersiz veri: {len(df)} bars, gerekli: {required_bars}")
             return None
+        
+        self.signal_attempts += 1
+        
+        # Debug: Her 50 denemede bir istatistik göster
+        if self.debug_mode and self.signal_attempts % 50 == 0:
+            self.logger.info(f"[SEARCH] Sinyal Arama İstatistikleri:")
+            self.logger.info(f"  Toplam Deneme: {self.signal_attempts}")
+            self.logger.info(f"  Son Sinyal: {self.last_signal if self.last_signal else 'YOK'}")
+            self.logger.info(f"  Son Sinyal Zamanı: {self.last_signal_time if self.last_signal_time else 'YOK'}")
         
         self.adjust_parameters_by_volatility(df)
         
@@ -951,20 +965,24 @@ class ImprovedMegaTrendBot:
         previous_price = close[-2] if len(close) > 1 else current_price
         current_time = df['time'].iloc[-1]
         
-        # 🔍 1. TREND GÜÇ ANALİZİ (ÇOK KATΙ)
+        # [SEARCH] 1. TREND GÜÇ ANALİZİ (DAHA ESNEK)
         trend_analysis = self.analyze_trend_strength(df)
         if trend_analysis['strength'] < self.trend_strength_threshold:
-            self.logger.debug(f"[X] Trend zayif: {trend_analysis['strength']:.2f}")
+            if self.debug_mode and self.signal_attempts % 20 == 0:
+                self.logger.debug(f"[X] Trend zayif: {trend_analysis['strength']:.2f} < {self.trend_strength_threshold}")
+                self.logger.debug(f"    Trend Yonu: {trend_analysis['direction']}")
             return None
         
-        # 🔍 2. VOLATİLİTE KIRIILIM
-        if not self.check_volatility_breakout(df):
+        # [SEARCH] 2. VOLATİLİTE KIRIILIM (ESNEK)
+        if self.volatility_breakout_filter and not self.check_volatility_breakout(df):
+            if self.debug_mode:
+                self.logger.debug("[X] Volatilite kiriilim yetersiz")
             return None
         
-        # 🔍 3. MOMENTUM DİVERGENCE
+        # [SEARCH] 3. MOMENTUM DİVERGENCE
         divergence = self.check_momentum_divergence(df)
         
-        # 🔍 4. TEKNİK GÖSTERGELERİ HESAPLA
+        # [SEARCH] 4. TEKNİK GÖSTERGELERİ HESAPLA
         dema1 = self.calculate_dema(df['close'], self.media1_period)
         dema2 = self.calculate_dema(df['close'], self.media2_period)
         dema3 = self.calculate_dema(df['close'], self.media3_period)
@@ -975,246 +993,277 @@ class ImprovedMegaTrendBot:
         macd, macd_signal, macd_hist = self.calculate_macd(df)
         bb_upper, bb_middle, bb_lower = self.calculate_bollinger_bands(df)
         
-        # 🔍 5. PRICE ACTION
+        # [SEARCH] 5. PRICE ACTION
         price_action = self.analyze_price_action(df)
         
-        # 🔍 6. PIVOT VE S/R
+        # [SEARCH] 6. PIVOT VE S/R
         pivot_highs, pivot_lows = self.find_pivot_points(df)
         sr_levels = self.calculate_support_resistance(pivot_highs, pivot_lows, df)
         supply_zones, demand_zones = self.calculate_supply_demand_zones(df)
         
-        # 🎯 SİNYAL ÜRETİMİ - SÜPER KATΙ
+        # [TARGET] SİNYAL ÜRETİMİ - DAHA ESNEK
         signal = None
         signal_strength = 0
         confirmation_count = 0
+        rejection_reasons = []  # Debug için red sebepleri
         
-        # ✅ 1. SUPERTREND + TREND YÖN UYUMU (ZORUNLU)
+        # [OK] 1. SUPERTREND + TREND YÖN UYUMU (ESNEK)
         supertrend_signal = False
-        if len(trend) > 2:
-            # SuperTrend değişimi + güçlü trend
-            if (trend[-1] == 1 and trend[-2] == -1 and trend[-3] == -1 and 
-                trend_analysis['direction'] == 'UPTREND'):
+        if len(trend) > 1:  # Daha esnek koşul
+            # SuperTrend değişimi
+            if (trend[-1] == 1 and trend[-2] == -1 and 
+                trend_analysis['direction'] in ['UPTREND', 'SIDEWAYS']):  # SIDEWAYS de kabul
                 signal = "BUY"
-                signal_strength += 4
+                signal_strength += 3  # Daha düşük puan
                 confirmation_count += 1
                 supertrend_signal = True
-                self.logger.debug("✅ SuperTrend BUY + güçlü uptrend")
-            elif (trend[-1] == -1 and trend[-2] == 1 and trend[-3] == 1 and 
-                  trend_analysis['direction'] == 'DOWNTREND'):
+                if self.debug_mode:
+                    self.logger.debug("[OK] SuperTrend BUY + trend uyumu")
+            elif (trend[-1] == -1 and trend[-2] == 1 and 
+                  trend_analysis['direction'] in ['DOWNTREND', 'SIDEWAYS']):  # SIDEWAYS de kabul
                 signal = "SELL" 
-                signal_strength += 4
+                signal_strength += 3  # Daha düşük puan
                 confirmation_count += 1
                 supertrend_signal = True
-                self.logger.debug("✅ SuperTrend SELL + güçlü downtrend")
+                if self.debug_mode:
+                    self.logger.debug("[OK] SuperTrend SELL + trend uyumu")
         
         # SuperTrend sinyali yoksa çık
         if not supertrend_signal:
-            self.logger.debug("❌ SuperTrend sinyali yok veya trend uyumsuz")
+            rejection_reasons.append("SuperTrend sinyali yok")
+            if self.debug_mode and self.signal_attempts % 10 == 0:
+                self.logger.debug(f"[X] SuperTrend sinyali yok - Trend: {trend[-1] if len(trend) > 0 else 'N/A'}")
             return None
         
-        # ✅ 2. MOVING AVERAGE SIRALAM (ZORUNLU)
+        # [OK] 2. MOVING AVERAGE SIRALAM (ESNEK)
         ma_alignment = False
         if len(dema1) > 1 and len(dema2) > 1 and len(dema3) > 1:
             ma1 = dema1.iloc[-1]
             ma2 = dema2.iloc[-1] 
             ma3 = dema3.iloc[-1]
             
-            if (signal == "BUY" and ma1 > ma2 > ma3 and 
-                current_price > ma1 and previous_price > ma1):
-                signal_strength += 3
+            # Daha esnek MA koşulları
+            if (signal == "BUY" and ma1 > ma2 and current_price > ma1):  # MA3 koşulu kaldırıldı
+                signal_strength += 2
                 confirmation_count += 1
                 ma_alignment = True
-                self.logger.debug("✅ MA sıralaması BUY uygun")
-            elif (signal == "SELL" and ma1 < ma2 < ma3 and 
-                  current_price < ma1 and previous_price < ma1):
-                signal_strength += 3
+                if self.debug_mode:
+                    self.logger.debug("[OK] MA siralaması BUY uygun (esnek)")
+            elif (signal == "SELL" and ma1 < ma2 and current_price < ma1):  # MA3 koşulu kaldırıldı
+                signal_strength += 2
                 confirmation_count += 1
                 ma_alignment = True
-                self.logger.debug("✅ MA sıralaması SELL uygun")
+                if self.debug_mode:
+                    self.logger.debug("[OK] MA siralaması SELL uygun (esnek)")
         
         if not ma_alignment:
-            self.logger.debug("❌ MA sıralaması uygun değil")
+            rejection_reasons.append("MA siralaması uygun degil")
+            if self.debug_mode and self.signal_attempts % 10 == 0:
+                ma1 = dema1.iloc[-1] if len(dema1) > 0 else 0
+                ma2 = dema2.iloc[-1] if len(dema2) > 0 else 0
+                self.logger.debug(f"[X] MA uyumsuz - MA1: {ma1:.2f}, MA2: {ma2:.2f}, Fiyat: {current_price:.2f}")
             return None
         
-        # ✅ 3. RSI AKILLI FİLTRE (ZORUNLU)
+        # [OK] 3. RSI AKILLI FİLTRE (DAHA ESNEK)
         rsi_ok = False
         if signal == "BUY":
-            if current_rsi > 75:  # Çok overbought
-                self.logger.debug(f"❌ RSI çok yüksek: {current_rsi}")
+            if current_rsi > self.rsi_overbought:  # 70
+                rejection_reasons.append(f"RSI cok yuksek: {current_rsi:.1f}")
+                if self.debug_mode:
+                    self.logger.debug(f"[X] RSI cok yuksek: {current_rsi:.1f}")
                 return None
-            elif 25 <= current_rsi <= 65:  # İdeal aralık
-                signal_strength += 3
+            elif current_rsi >= 20:  # Çok geniş aralık
+                signal_strength += 2
                 confirmation_count += 1
                 rsi_ok = True
-                self.logger.debug(f"✅ RSI BUY uygun: {current_rsi}")
+                if self.debug_mode:
+                    self.logger.debug(f"[OK] RSI BUY uygun: {current_rsi:.1f}")
         elif signal == "SELL":
-            if current_rsi < 25:  # Çok oversold
-                self.logger.debug(f"❌ RSI çok düşük: {current_rsi}")
+            if current_rsi < self.rsi_oversold:  # 30
+                rejection_reasons.append(f"RSI cok dusuk: {current_rsi:.1f}")
+                if self.debug_mode:
+                    self.logger.debug(f"[X] RSI cok dusuk: {current_rsi:.1f}")
                 return None
-            elif 35 <= current_rsi <= 75:  # İdeal aralık
-                signal_strength += 3
+            elif current_rsi <= 80:  # Çok geniş aralık
+                signal_strength += 2
                 confirmation_count += 1
                 rsi_ok = True
-                self.logger.debug(f"✅ RSI SELL uygun: {current_rsi}")
+                if self.debug_mode:
+                    self.logger.debug(f"[OK] RSI SELL uygun: {current_rsi:.1f}")
         
         if not rsi_ok:
+            rejection_reasons.append("RSI aralik uygun degil")
             return None
         
-        # ✅ 4. MACD KONFİRMASYONU (ZORUNLU)
-        macd_ok = False
+        # [OK] 4. MACD KONFİRMASYONU (İSTEĞE BAĞLI)
+        macd_ok = True  # Varsayılan olarak geçer
         if (len(macd) > 1 and len(macd_signal) > 1 and 
             not np.isnan(macd[-1]) and not np.isnan(macd_signal[-1])):
             
-            if (signal == "BUY" and macd[-1] > macd_signal[-1] and 
-                macd[-1] > macd[-2]):  # MACD yükseliyor
-                signal_strength += 3
+            if (signal == "BUY" and macd[-1] > macd_signal[-1]):  # Basit koşul
+                signal_strength += 2
                 confirmation_count += 1
-                macd_ok = True
-                self.logger.debug("✅ MACD BUY konfirmasyonu")
-            elif (signal == "SELL" and macd[-1] < macd_signal[-1] and 
-                  macd[-1] < macd[-2]):  # MACD düşüyor
-                signal_strength += 3
+                if self.debug_mode:
+                    self.logger.debug("[OK] MACD BUY konfirmasyonu")
+            elif (signal == "SELL" and macd[-1] < macd_signal[-1]):  # Basit koşul
+                signal_strength += 2
                 confirmation_count += 1
-                macd_ok = True
-                self.logger.debug("✅ MACD SELL konfirmasyonu")
+                if self.debug_mode:
+                    self.logger.debug("[OK] MACD SELL konfirmasyonu")
+            # MACD uyumsuzluk artık sinyal iptal etmiyor
         
-        if not macd_ok:
-            self.logger.debug("❌ MACD konfirmasyonu yok")
-            return None
-        
-        # ✅ 5. BOLLINGER BANDS (ÖNEMLİ)
-        bb_ok = False
+        # [OK] 5. BOLLINGER BANDS (İSTEĞE BAĞLI)
+        bb_position = 0.5  # Varsayılan orta
         if len(bb_upper) > 0 and len(bb_lower) > 0:
             bb_width = bb_upper[-1] - bb_lower[-1]
             bb_position = (current_price - bb_lower[-1]) / bb_width
             
-            if signal == "BUY" and bb_position <= 0.3:  # Alt %30'da
-                signal_strength += 2
+            if signal == "BUY" and bb_position <= 0.4:  # Daha esnek %40
+                signal_strength += 1
                 confirmation_count += 1
-                bb_ok = True
-                self.logger.debug("✅ BB BUY pozisyonu uygun")
-            elif signal == "SELL" and bb_position >= 0.7:  # Üst %30'da
-                signal_strength += 2
+                if self.debug_mode:
+                    self.logger.debug("[OK] BB BUY pozisyonu uygun")
+            elif signal == "SELL" and bb_position >= 0.6:  # Daha esnek %60
+                signal_strength += 1
                 confirmation_count += 1
-                bb_ok = True
-                self.logger.debug("✅ BB SELL pozisyonu uygun")
+                if self.debug_mode:
+                    self.logger.debug("[OK] BB SELL pozisyonu uygun")
         
-        # ✅ 6. PRICE ACTION KONFİRMASYONU
+        # [OK] 6. PRICE ACTION KONFİRMASYONU (İSTEĞE BAĞLI)
         if self.price_action_confirmation:
             if signal == "BUY" and price_action['bullish_pattern']:
                 signal_strength += price_action['bullish_strength']
                 confirmation_count += 1
-                self.logger.debug("✅ Bullish price action")
+                if self.debug_mode:
+                    self.logger.debug("[OK] Bullish price action")
             elif signal == "SELL" and price_action['bearish_pattern']:
                 signal_strength += price_action['bearish_strength']
                 confirmation_count += 1
-                self.logger.debug("✅ Bearish price action")
+                if self.debug_mode:
+                    self.logger.debug("[OK] Bearish price action")
             
-            # Ters pattern kontrolü
+            # Güçlü ters pattern kontrolü (sadece çok güçlü olanlar iptal eder)
             if (signal == "BUY" and price_action['bearish_pattern'] and 
-                price_action['bearish_strength'] >= 3):
-                self.logger.debug("❌ Güçlü bearish pattern - BUY iptal")
+                price_action['bearish_strength'] >= 4):  # Daha yüksek eşik
+                rejection_reasons.append("Cok guclu bearish pattern")
+                if self.debug_mode:
+                    self.logger.debug("[X] Cok guclu bearish pattern - BUY iptal")
                 return None
             elif (signal == "SELL" and price_action['bullish_pattern'] and 
-                  price_action['bullish_strength'] >= 3):
-                self.logger.debug("❌ Güçlü bullish pattern - SELL iptal")
+                  price_action['bullish_strength'] >= 4):  # Daha yüksek eşik
+                rejection_reasons.append("Cok guclu bullish pattern")
+                if self.debug_mode:
+                    self.logger.debug("[X] Cok guclu bullish pattern - SELL iptal")
                 return None
         
-        # ✅ 7. MOMENTUM DİVERGENCE KONTROLÜ
+        # [OK] 7. MOMENTUM DİVERGENCE (BONUS)
         if divergence['bullish_divergence'] and signal == "BUY":
-            signal_strength += 4
+            signal_strength += 3
             confirmation_count += 1
-            self.logger.debug("✅ Bullish divergence konfirmasyonu")
+            if self.debug_mode:
+                self.logger.debug("[OK] Bullish divergence bonus")
         elif divergence['bearish_divergence'] and signal == "SELL":
-            signal_strength += 4
+            signal_strength += 3
             confirmation_count += 1
-            self.logger.debug("✅ Bearish divergence konfirmasyonu")
-        elif divergence['bullish_divergence'] and signal == "SELL":
-            self.logger.debug("❌ Bullish divergence var - SELL iptal")
-            return None
-        elif divergence['bearish_divergence'] and signal == "BUY":
-            self.logger.debug("❌ Bearish divergence var - BUY iptal")
-            return None
+            if self.debug_mode:
+                self.logger.debug("[OK] Bearish divergence bonus")
+        # Ters divergence artık iptal etmiyor
         
-        # ✅ 8. SUPPORT/RESISTANCE KIRIILIM ANALİZİ
+        # [OK] 8. SUPPORT/RESISTANCE KIRIILIM (BONUS)
         strong_breakout = False
         atr = self.get_atr(df)
         price_move = abs(current_price - previous_price)
         
-        if price_move > atr * 0.3:  # ATR'nin %30'u kadar hareket
-            for level in sr_levels[:2]:  # Sadece en güçlü 2 seviye
+        if price_move > atr * 0.2:  # Daha düşük eşik
+            for level in sr_levels[:3]:  # Daha fazla seviye
                 level_price = level['level']
                 if (signal == "BUY" and previous_price <= level_price < current_price and 
-                    level['strength'] >= 3):
-                    signal_strength += level['strength'] * 2
+                    level['strength'] >= 2):  # Daha düşük güç
+                    signal_strength += level['strength']
                     strong_breakout = True
-                    self.logger.debug(f"✅ Güçlü resistance kırılımı: {level_price}")
+                    if self.debug_mode:
+                        self.logger.debug(f"[OK] Resistance kirilimi: {level_price:.2f}")
                 elif (signal == "SELL" and previous_price >= level_price > current_price and 
-                      level['strength'] >= 3):
-                    signal_strength += level['strength'] * 2
+                      level['strength'] >= 2):  # Daha düşük güç
+                    signal_strength += level['strength']
                     strong_breakout = True
-                    self.logger.debug(f"✅ Güçlü support kırılımı: {level_price}")
+                    if self.debug_mode:
+                        self.logger.debug(f"[OK] Support kirilimi: {level_price:.2f}")
         
         if strong_breakout:
             confirmation_count += 1
         
-        # ✅ 9. HACİM KONFİRMASYONU
-        volume_ok = False
-        if len(df) >= 30:
-            volume_sma = df['tick_volume'].rolling(30).mean()
+        # [OK] 9. HACİM KONFİRMASYONU (İSTEĞE BAĞLI)
+        volume_ok = True  # Varsayılan geçer
+        if len(df) >= 20:
+            volume_sma = df['tick_volume'].rolling(20).mean()
             current_volume = df['tick_volume'].iloc[-1]
             avg_volume = volume_sma.iloc[-1]
             
-            if current_volume > avg_volume * 1.8:  # 1.8x ortalama hacim
-                signal_strength += 2
+            if current_volume > avg_volume * 1.3:  # Daha düşük eşik
+                signal_strength += 1
                 confirmation_count += 1
                 volume_ok = True
-                self.logger.debug(f"✅ Yüksek hacim: {current_volume} vs {avg_volume}")
-            elif current_volume < avg_volume * 0.3:  # Çok düşük hacim
-                self.logger.debug("❌ Çok düşük hacim")
+                if self.debug_mode:
+                    self.logger.debug(f"[OK] Hacim bonus: {current_volume:.0f} vs {avg_volume:.0f}")
+            elif current_volume < avg_volume * 0.2:  # Çok düşük hacim iptal eder
+                rejection_reasons.append("Cok dusuk hacim")
+                if self.debug_mode:
+                    self.logger.debug("[X] Cok dusuk hacim")
                 return None
         
-        # 🚨 SÜPER KATΙ FİLTRELER
+        # [SEARCH] ESNEK FİLTRELER
         
-        # Minimum konfirmasyon kontrolü
+        # Minimum konfirmasyon kontrolü (ESNEK)
         if confirmation_count < self.min_confirmations:
-            self.logger.debug(f"❌ Yetersiz konfirmasyon: {confirmation_count}/{self.min_confirmations}")
+            rejection_reasons.append(f"Yetersiz konfirmasyon: {confirmation_count}/{self.min_confirmations}")
+            if self.debug_mode and self.signal_attempts % 5 == 0:
+                self.logger.debug(f"[X] Yetersiz konfirmasyon: {confirmation_count}/{self.min_confirmations}")
             return None
         
         # Geçmiş sinyal kontrolü
         if not self.check_false_signal_history(signal):
+            rejection_reasons.append("False signal history")
             return None
         
-        # Çoklu timeframe kontrolü
-        if not self.check_multi_timeframe_confirmation(signal):
-            self.logger.debug("❌ Yüksek timeframe uyumsuz")
+        # Çoklu timeframe kontrolü (KAPALI)
+        if self.multi_timeframe_confirmation and not self.check_multi_timeframe_confirmation(signal):
+            rejection_reasons.append("Yuksek timeframe uyumsuz")
+            if self.debug_mode:
+                self.logger.debug("[X] Yuksek timeframe uyumsuz")
             return None
         
-        # Sinyal cooldown
+        # Sinyal cooldown (DAHA KISA)
         if (self.last_signal_time is not None and 
             (current_time - self.last_signal_time).total_seconds() < self.false_signal_cooldown):
-            self.logger.debug("❌ Sinyal cooldown aktif")
+            cooldown_remaining = self.false_signal_cooldown - (current_time - self.last_signal_time).total_seconds()
+            rejection_reasons.append(f"Cooldown aktif: {cooldown_remaining:.0f}s")
+            if self.debug_mode and self.signal_attempts % 20 == 0:
+                self.logger.debug(f"[X] Cooldown aktif: {cooldown_remaining:.0f}s kaldi")
             return None
         
-        # 🎯 FİNAL ONAY
+        # [TARGET] FİNAL ONAY
         if (signal and signal_strength >= self.min_signal_strength and 
             confirmation_count >= self.min_confirmations):
             
-            # Aşırı volatilite kontrolü
-            if atr > self.get_average_atr(50, df) * 4:
-                self.logger.debug("❌ Aşırı volatilite")
+            # Aşırı volatilite kontrolü (ESNEK)
+            if atr > self.get_average_atr(30, df) * 5:  # Daha yüksek limit
+                rejection_reasons.append("Asiri volatilite")
+                if self.debug_mode:
+                    self.logger.debug("[X] Asiri volatilite")
                 return None
             
             # Son güçlendirme
-            if strong_breakout and volume_ok and bb_ok:
+            if strong_breakout and volume_ok:
                 signal = f"STRONG_{signal}"
-                signal_strength += 2
+                signal_strength += 1
             
-            self.logger.info(f"🎯 ULTRA GÜÇLÜ SİNYAL: {signal}")
-            self.logger.info(f"   📊 Güç: {signal_strength}/{self.min_signal_strength}")
-            self.logger.info(f"   ✅ Konfirmasyon: {confirmation_count}/{self.min_confirmations}")
-            self.logger.info(f"   📈 RSI: {current_rsi:.1f}, Trend: {trend_analysis['direction']}")
-            self.logger.info(f"   💪 Trend Gücü: {trend_analysis['strength']:.2f}")
+            # BAŞARILI SINYAL!
+            self.logger.info(f"[TARGET] GUCLU SINYAL: {signal}")
+            self.logger.info(f"   [CHART] Guc: {signal_strength}/{self.min_signal_strength}")
+            self.logger.info(f"   [OK] Konfirmasyon: {confirmation_count}/{self.min_confirmations}")
+            self.logger.info(f"   [UP] RSI: {current_rsi:.1f}, Trend: {trend_analysis['direction']}")
+            self.logger.info(f"   [STRONG] Trend Gucu: {trend_analysis['strength']:.2f}")
             
             # Sinyali kaydet
             self.last_signal = signal
@@ -1242,19 +1291,22 @@ class ImprovedMegaTrendBot:
                 'trend': trend[-1],
                 'macd': macd[-1] if len(macd) > 0 else 0,
                 'macd_signal': macd_signal[-1] if len(macd_signal) > 0 else 0,
-                'bb_position': bb_position if len(bb_upper) > 0 else 0.5,
+                'bb_position': bb_position,
                 'sr_levels': sr_levels,
                 'supply_zones': supply_zones,
                 'demand_zones': demand_zones,
                 'atr': atr,
-                'volume_ratio': current_volume / avg_volume if len(df) >= 30 else 1.0
+                'volume_ratio': current_volume / avg_volume if len(df) >= 20 else 1.0
             }
         
-        # Debug bilgisi
-        self.logger.debug(f"❌ Sinyal reddedildi: {signal if signal else 'YOK'}")
-        self.logger.debug(f"   Güç: {signal_strength}/{self.min_signal_strength}")
-        self.logger.debug(f"   Konfirmasyon: {confirmation_count}/{self.min_confirmations}")
-        self.logger.debug(f"   Trend: {trend_analysis['direction']} ({trend_analysis['strength']:.2f})")
+        # Debug bilgisi (daha sık)
+        if self.debug_mode and self.signal_attempts % 20 == 0:
+            self.logger.debug(f"[X] Sinyal reddedildi: {signal if signal else 'YOK'}")
+            self.logger.debug(f"   Guc: {signal_strength}/{self.min_signal_strength}")
+            self.logger.debug(f"   Konfirmasyon: {confirmation_count}/{self.min_confirmations}")
+            self.logger.debug(f"   RSI: {current_rsi:.1f}, Trend: {trend_analysis['direction']} ({trend_analysis['strength']:.2f})")
+            if rejection_reasons:
+                self.logger.debug(f"   Red Sebepleri: {', '.join(rejection_reasons[:3])}")
         
         return None
 
@@ -1757,12 +1809,13 @@ if __name__ == "__main__":
         enable_spread_filter=False  # Spread kontrolü KAPALI (sorun giderme için)
     )
     
-    # Aşırı konservatif ayarlar
-    bot.min_signal_strength = 12     # ÇOK YÜKSEK
-    bot.max_positions = 1            # Tek pozisyon
-    bot.max_daily_loss = 25.0        # $25 günlük limit
-    bot.false_signal_cooldown = 900  # 15 dakika
-    bot.min_confirmations = 5        # 5 konfirmasyon
+    # Daha pratik ayarlar
+    bot.min_signal_strength = 5     # MAKUL SEVIYE (önceki: 12)
+    bot.max_positions = 1           # Tek pozisyon (güvenli)
+    bot.max_daily_loss = 50.0       # $50 günlük limit
+    bot.false_signal_cooldown = 300 # 5 dakika (önceki: 15 dakika)
+    bot.min_confirmations = 3       # 3 konfirmasyon (önceki: 5)
+    bot.debug_mode = True           # Debug modu aktif
     
     timeframe_names = {
         1: "M1", 5: "M5", 15: "M15", 30: "M30", 
