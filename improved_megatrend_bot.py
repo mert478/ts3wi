@@ -13,12 +13,70 @@ from typing import Dict, List, Optional, Tuple
 warnings.filterwarnings('ignore')
 
 # Gelişmiş loglama yapılandırması
+import sys
+import locale
+
+# Windows encoding sorununu çöz
+if sys.platform.startswith('win'):
+    # UTF-8 encoding'i zorla
+    sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
+    sys.stderr.reconfigure(encoding='utf-8', errors='ignore')
+
+# Unicode-safe logging yapılandırması
+class UnicodeFileHandler(logging.FileHandler):
+    def __init__(self, filename, mode='a', encoding='utf-8', delay=False):
+        super().__init__(filename, mode, encoding, delay)
+
+class UnicodeStreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            # Emoji'leri güvenli karakterlerle değiştir
+            emoji_map = {
+                '🚀': '[START]',
+                '🎯': '[TARGET]',
+                '❌': '[X]',
+                '✅': '[OK]',
+                '🔍': '[SEARCH]',
+                '💰': '[MONEY]',
+                '📊': '[CHART]',
+                '⚡': '[POWER]',
+                '📈': '[UP]',
+                '🛡️': '[SHIELD]',
+                '⏰': '[TIME]',
+                '🔒': '[LOCK]',
+                '🔥': '[FIRE]',
+                '💎': '[DIAMOND]',
+                '🏆': '[TROPHY]',
+                '📉': '[DOWN]',
+                '💵': '[DOLLAR]',
+                '⏹️': '[STOP]',
+                '👋': '[WAVE]',
+                '💪': '[STRONG]'
+            }
+            
+            for emoji, replacement in emoji_map.items():
+                msg = msg.replace(emoji, replacement)
+            
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            # Emoji'ler çıkarılmış basit mesaj
+            try:
+                simple_msg = ''.join(char for char in record.getMessage() if ord(char) < 128)
+                stream = self.stream
+                stream.write(f"{record.levelname}: {simple_msg}\n")
+                self.flush()
+            except:
+                pass
+
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
+        UnicodeFileHandler('bot.log', encoding='utf-8'),
+        UnicodeStreamHandler()
     ]
 )
 
@@ -153,6 +211,15 @@ class ImprovedMegaTrendBot:
     def __init__(self, symbol="XAUUSD+", timeframe=mt5.TIMEFRAME_M15, 
                  initial_lot_size=0.01, risk_per_trade=0.02, 
                  enable_spread_filter=True):
+        
+        # Unicode güvenli logging için emoji haritası
+        self.emoji_map = {
+            '🚀': '[START]', '🎯': '[TARGET]', '❌': '[X]', '✅': '[OK]',
+            '🔍': '[SEARCH]', '💰': '[MONEY]', '📊': '[CHART]', '⚡': '[POWER]',
+            '📈': '[UP]', '🛡️': '[SHIELD]', '⏰': '[TIME]', '🔒': '[LOCK]',
+            '🔥': '[FIRE]', '💎': '[DIAMOND]', '🏆': '[TROPHY]', '📉': '[DOWN]',
+            '💵': '[DOLLAR]', '⏹️': '[STOP]', '👋': '[WAVE]', '💪': '[STRONG]'
+        }
         # Temel parametreler
         self.symbol = symbol
         self.timeframe = timeframe
@@ -887,7 +954,7 @@ class ImprovedMegaTrendBot:
         # 🔍 1. TREND GÜÇ ANALİZİ (ÇOK KATΙ)
         trend_analysis = self.analyze_trend_strength(df)
         if trend_analysis['strength'] < self.trend_strength_threshold:
-            self.logger.debug(f"❌ Trend zayıf: {trend_analysis['strength']:.2f}")
+            self.logger.debug(f"[X] Trend zayif: {trend_analysis['strength']:.2f}")
             return None
         
         # 🔍 2. VOLATİLİTE KIRIILIM
@@ -1569,11 +1636,11 @@ class ImprovedMegaTrendBot:
 
     def run_bot(self):
         """Bot ana döngüsü"""
-        self.logger.info("🚀 IMPROVED MEGATREND BOT V2.0 BAŞLATILDI")
-        self.logger.info("🎯 ULTRA YÜKSEK DOĞRULUK MOD AKTİF")
+        self.logger.info("[START] IMPROVED MEGATREND BOT V2.0 BASLATILDI")
+        self.logger.info("[TARGET] ULTRA YUKSEK DOGRULUK MOD AKTIF")
         
         if not self.initialize_mt5():
-            self.logger.error("❌ Bot başlatılamadı")
+            self.logger.error("[X] Bot baslatilamadi")
             return
         
         loop_count = 0
@@ -1653,18 +1720,33 @@ class ImprovedMegaTrendBot:
                 time.sleep(15)  # 15 saniye bekle
                 
         except KeyboardInterrupt:
-            self.logger.info("⏹️ Bot kullanıcı tarafından durduruldu")
+            self.logger.info("[STOP] Bot kullanici tarafindan durduruldu")
         except Exception as e:
-            self.logger.error(f"❌ Bot ana döngüsünde hata: {e}")
+            self.logger.error(f"[X] Bot ana dongusunde hata: {e}")
         finally:
             self.log_performance_summary()
             mt5.shutdown()
-            self.logger.info("👋 Bot kapatıldı")
+            self.logger.info("[WAVE] Bot kapatildi")
 
 if __name__ == "__main__":
-    print("🚀 IMPROVED MEGATREND BOT V2.0")
-    print("🎯 ULTRA YÜKSEK DOĞRULUK MOD")
-    print("=" * 50)
+    # Windows terminal için güvenli çıktı
+    def safe_print(text):
+        try:
+            print(text)
+        except UnicodeEncodeError:
+            # Emoji'leri güvenli karakterlerle değiştir
+            emoji_map = {
+                '🚀': '[START]', '🎯': '[TARGET]', '📊': '[CHART]', '⚡': '[POWER]',
+                '💰': '[MONEY]', '📈': '[UP]', '🛡️': '[SHIELD]', '⏰': '[TIME]',
+                '🔒': '[LOCK]'
+            }
+            for emoji, replacement in emoji_map.items():
+                text = text.replace(emoji, replacement)
+            print(text)
+    
+    safe_print("[START] IMPROVED MEGATREND BOT V2.0")
+    safe_print("[TARGET] ULTRA YUKSEK DOGRULUK MOD")
+    safe_print("=" * 50)
     
     # Bot parametrelerini özelleştir
     bot = ImprovedMegaTrendBot(
@@ -1672,7 +1754,7 @@ if __name__ == "__main__":
         timeframe=mt5.TIMEFRAME_M1,
         initial_lot_size=0.01,
         risk_per_trade=0.005,  # %0.5 risk (çok konservatif)
-        enable_spread_filter=True
+        enable_spread_filter=False  # Spread kontrolü KAPALI (sorun giderme için)
     )
     
     # Aşırı konservatif ayarlar
@@ -1688,14 +1770,14 @@ if __name__ == "__main__":
     }
     tf_name = timeframe_names.get(bot.timeframe, f"TF{bot.timeframe}")
     
-    print(f"📊 Timeframe: {tf_name}")
-    print(f"⚡ Min Sinyal Gücü: {bot.min_signal_strength}")
-    print(f"💰 Risk per trade: {bot.risk_per_trade*100}%")
-    print(f"📈 Max pozisyonlar: {bot.max_positions}")
-    print(f"🛡️ Min konfirmasyon: {bot.min_confirmations}")
-    print(f"⏰ Sinyal cooldown: {bot.false_signal_cooldown}s")
-    print(f"🔒 Spread kontrolü: {'AÇIK' if bot.enable_spread_filter else 'KAPALI'}")
-    print("=" * 50)
-    print("🎯 Bot başlatılıyor...")
+    safe_print(f"[CHART] Timeframe: {tf_name}")
+    safe_print(f"[POWER] Min Sinyal Gucu: {bot.min_signal_strength}")
+    safe_print(f"[MONEY] Risk per trade: {bot.risk_per_trade*100}%")
+    safe_print(f"[UP] Max pozisyonlar: {bot.max_positions}")
+    safe_print(f"[SHIELD] Min konfirmasyon: {bot.min_confirmations}")
+    safe_print(f"[TIME] Sinyal cooldown: {bot.false_signal_cooldown}s")
+    safe_print(f"[LOCK] Spread kontrolu: {'ACIK' if bot.enable_spread_filter else 'KAPALI'}")
+    safe_print("=" * 50)
+    safe_print("[TARGET] Bot baslatiliyor...")
     
     bot.run_bot()
