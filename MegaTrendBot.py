@@ -249,24 +249,43 @@ class MegaTrendBot:
         self.logger.debug(f"SL: {stop_loss}, TP: {take_profit}, SL pip: {stop_loss_pips}")
         return stop_loss, take_profit, abs(stop_loss_pips)
 
-    def place_order(self, order_type, sl, tp, lot_size):
-        if mt5.order_send(
-            symbol=self.symbol,
-            type=order_type,
-            action=mt5.TRADE_ACTION_DEAL,
-            volume=lot_size,
-            price=sl,
-            sl=sl,
-            tp=tp,
-            magic=self.magic_number,
-            comment="MegaTrendBot",
-            type_time=mt5.ORDER_TIME_GTC,
-            type_filling=mt5.ORDER_FILLING_FOK,
-            type_expiration=0
-        ) == -1:
-            self.logger.error(f"Emri verme hatası: {mt5.last_error()}")
+    def place_order(self, order_type, stop_loss, take_profit, lot_size=None):
+        symbol_info = mt5.symbol_info(self.symbol)
+        if symbol_info is None:
+            self.logger.error(f"Symbol bilgisi alınamadı: {self.symbol}")
             return False
-        self.logger.info(f"Emri verildi - Tip: {order_type}, Lot: {lot_size}, SL: {sl}, TP: {tp}")
+        if not symbol_info.visible:
+            if not mt5.symbol_select(self.symbol, True):
+                self.logger.error(f"Symbol seçilemedi: {self.symbol}")
+                return False
+        tick = mt5.symbol_info_tick(self.symbol)
+        if tick is None:
+            self.logger.error("Tick bilgisi alınamadı")
+            return False
+        price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
+        volume = max(symbol_info.volume_min, min(symbol_info.volume_max, lot_size or self.lot_size))
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": self.symbol,
+            "volume": volume,
+            "type": order_type,
+            "price": price,
+            "sl": stop_loss,
+            "tp": take_profit,
+            "deviation": 20,
+            "magic": self.magic_number,
+            "comment": "MegaTrendBot",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
+        result = mt5.order_send(request)
+        if result is None:
+            self.logger.error("order_send sonucu None döndü!")
+            return False
+        if result.retcode != mt5.TRADE_RETCODE_DONE:
+            self.logger.error(f"Emir başarısız! retcode: {result.retcode}, detay: {result.comment}")
+            return False
+        self.logger.info(f"Emir başarılı: {result.order} - {'BUY' if order_type == mt5.ORDER_TYPE_BUY else 'SELL'} - {volume} lot")
         return True
 
     def close_positions(self, position_type):
