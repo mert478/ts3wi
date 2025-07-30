@@ -74,7 +74,7 @@ class MegaTrendBot:
         self.logger.error("MT5 bağlantısı başarısız, program sonlandırılıyor")
         return False
 
-    def calculate_lot_size(self, stop_loss_pips, risk_percent=1):
+    def calculate_lot_size(self, stop_loss_pips, risk_percent=0.1):  # Risk yüzdesini 0.1'e düşür
         account_info = mt5.account_info()
         if account_info is None:
             return self.lot_size
@@ -330,9 +330,7 @@ class MegaTrendBot:
         if account_info is None:
             self.logger.error("Hesap bilgileri alınamadı.")
             return False
-        if account_info.margin_level < self.min_margin_level:
-            self.logger.warning(f"Marjin seviyesi yetersiz: {account_info.margin_level}% < {self.min_margin_level}%")
-            return False
+        # Marjin kontrolünü kaldır - her zaman True döndür
         return True
 
     def run_bot(self):
