@@ -77,7 +77,7 @@ class MegaTrendBot:
     def calculate_lot_size(self, stop_loss_pips, risk_percent=0.1):  # Risk yüzdesini 0.1'e düşür
         account_info = mt5.account_info()
         if account_info is None:
-            return self.lot_size
+            return 0.01  # Sabit minimum lot
         balance = account_info.balance
         risk_amount = balance * risk_percent / 100
         pip_value = 0.1  # XAUUSD için pip değeri (örnek, brokerına göre değişebilir)
@@ -85,6 +85,12 @@ class MegaTrendBot:
         symbol_info = mt5.symbol_info(self.symbol)
         if symbol_info:
             lot_size = max(symbol_info.volume_min, min(symbol_info.volume_max, lot_size))
+        # Debug için lot hesaplamasını logla
+        self.logger.debug(f"Lot hesaplama: Bakiye={balance}, Risk={risk_amount}, SL_pips={stop_loss_pips}, Hesaplanan lot={lot_size}")
+        # Eğer lot çok büyükse, sabit küçük lot kullan
+        if lot_size > 0.1:
+            lot_size = 0.01
+            self.logger.debug(f"Lot çok büyük, sabit lot kullanılıyor: {lot_size}")
         return round(lot_size, 2)
 
     def check_daily_target(self):
@@ -284,6 +290,8 @@ class MegaTrendBot:
             return False
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             self.logger.error(f"Emir başarısız! retcode: {result.retcode}, detay: {result.comment}")
+            # Symbol bilgilerini de logla
+            self.logger.error(f"Symbol: {self.symbol}, Min lot: {symbol_info.volume_min}, Max lot: {symbol_info.volume_max}, Kullanılan lot: {volume}")
             return False
         self.logger.info(f"Emir başarılı: {result.order} - {'BUY' if order_type == mt5.ORDER_TYPE_BUY else 'SELL'} - {volume} lot")
         return True
