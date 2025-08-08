@@ -1,9 +1,0 @@
-Uygulama kullanımı:
-- Giriş ekranında URL, kullanıcı adı ve şifre girin. "Beni hatırla" ile cihazda saklanır.
-- Alt menüden Filmler, Diziler, Canlı TV, Ayarlar bölümlerine geçin.
-- İçeriklere tıklayarak oynatın.
-
-Test Bilgileri:
-URL: http://paket7e.org:8080
-Kullanıcı: Y9DgfVaDc328
-Şifre: Mc7jxWXJT8sP
