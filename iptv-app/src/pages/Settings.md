@@ -1,0 +1,6 @@
+- Favoriler
+- İzleme Geçmişi
+- Devam Et
+- Alt yazı
+- Çoklu dil
+- Ebeveyn kontrolü

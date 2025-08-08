@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b1220;
+  --panel: #0f172a;
+  --muted: #94a3b8;
+  --primary: #22c55e;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+/* TV/Android TV focus outline */
+:focus-visible {
+  outline: 2px solid theme(colors.emerald.400);
+  outline-offset: 2px;
+}
+
+/***** Scrollbar *****/
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: #233048; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: #0b1220; }

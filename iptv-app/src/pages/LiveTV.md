@@ -1,0 +1,1 @@
+Canlı TV listesi Xtream Codes API üzerinden çekilir. EPG entegrasyonu için `action=get_short_epg&stream_id` kullanılabilir.
